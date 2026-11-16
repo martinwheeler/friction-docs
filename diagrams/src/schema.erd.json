@@ -1,0 +1,555 @@
+{
+  "schema_version": 1,
+  "diagram_type": "erd",
+  "meta": {
+    "title": "friction: database schema",
+    "output": "diagrams/schema-erd.html",
+    "quality_profile": "standard",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/martinwheeler/friction.git",
+      "provider": "github",
+      "revision": "3e8ebabe23260f3fa8009c8d332444a1810c1615"
+    }
+  },
+  "layout": {
+    "mode": "grid",
+    "gapY": 38,
+    "gapX": 90
+  },
+  "entities": [
+    {
+      "id": "sessions",
+      "label": "sessions",
+      "tag": "raw, pruned after 30 days",
+      "row": 0,
+      "col": 0,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 54,
+          "end_line": 64
+        }
+      ],
+      "attributes": [
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "agent",
+          "type": "TEXT"
+        },
+        {
+          "name": "project",
+          "type": "TEXT"
+        },
+        {
+          "name": "cwd",
+          "type": "TEXT"
+        },
+        {
+          "name": "transcript",
+          "type": "TEXT"
+        },
+        {
+          "name": "started",
+          "type": "REAL"
+        },
+        {
+          "name": "last_seen",
+          "type": "REAL"
+        },
+        {
+          "name": "mark_event",
+          "type": "INTEGER"
+        },
+        {
+          "name": "nudge_event",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "id": "events",
+      "label": "events",
+      "tag": "raw, pruned after 30 days",
+      "row": 1,
+      "col": 0,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 35,
+          "end_line": 52
+        },
+        {
+          "path": "friction.py",
+          "line": 339,
+          "end_line": 344,
+          "label": "prune_events"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "ts",
+          "type": "REAL"
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "key": "fk",
+          "references": "sessions.session_id"
+        },
+        {
+          "name": "agent",
+          "type": "TEXT"
+        },
+        {
+          "name": "project",
+          "type": "TEXT"
+        },
+        {
+          "name": "kind",
+          "type": "TEXT"
+        },
+        {
+          "name": "tool",
+          "type": "TEXT"
+        },
+        {
+          "name": "tool_use_id",
+          "type": "TEXT"
+        },
+        {
+          "name": "ok",
+          "type": "INTEGER"
+        },
+        {
+          "name": "duration_ms",
+          "type": "INTEGER"
+        },
+        {
+          "name": "summary",
+          "type": "TEXT"
+        },
+        {
+          "name": "error",
+          "type": "TEXT"
+        },
+        {
+          "name": "source",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "id": "items",
+      "label": "items",
+      "tag": "friction, kept",
+      "row": 0,
+      "col": 1,
+      "width": 250,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 66,
+          "end_line": 79
+        },
+        {
+          "path": "friction.py",
+          "line": 118,
+          "end_line": 129,
+          "label": "sync migrations"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "detail",
+          "type": "TEXT"
+        },
+        {
+          "name": "workaround",
+          "type": "TEXT"
+        },
+        {
+          "name": "aliases",
+          "type": "TEXT"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        },
+        {
+          "name": "fix_note",
+          "type": "TEXT"
+        },
+        {
+          "name": "regressions",
+          "type": "INTEGER"
+        },
+        {
+          "name": "merged_into",
+          "type": "INTEGER",
+          "key": "fk",
+          "references": "items.id"
+        },
+        {
+          "name": "created",
+          "type": "REAL"
+        },
+        {
+          "name": "updated",
+          "type": "REAL"
+        },
+        {
+          "name": "resolved_at",
+          "type": "REAL"
+        },
+        {
+          "name": "remote_key",
+          "type": "TEXT"
+        },
+        {
+          "name": "remote_url",
+          "type": "TEXT"
+        },
+        {
+          "name": "dirty",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "id": "occurrences",
+      "label": "occurrences",
+      "tag": "friction, kept",
+      "row": 1,
+      "col": 1,
+      "width": 250,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 81,
+          "end_line": 99
+        },
+        {
+          "path": "friction.py",
+          "line": 122,
+          "end_line": 124,
+          "label": "uid, pushed"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "id",
+          "type": "INTEGER",
+          "key": "pk"
+        },
+        {
+          "name": "item_id",
+          "type": "INTEGER",
+          "key": "fk",
+          "references": "items.id"
+        },
+        {
+          "name": "ts",
+          "type": "REAL"
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "key": "fk",
+          "references": "sessions.session_id"
+        },
+        {
+          "name": "agent",
+          "type": "TEXT"
+        },
+        {
+          "name": "project",
+          "type": "TEXT"
+        },
+        {
+          "name": "wasted_s",
+          "type": "REAL"
+        },
+        {
+          "name": "timing",
+          "type": "TEXT"
+        },
+        {
+          "name": "from_event",
+          "type": "INTEGER",
+          "key": "fk",
+          "references": "events.id"
+        },
+        {
+          "name": "to_event",
+          "type": "INTEGER",
+          "key": "fk",
+          "references": "events.id"
+        },
+        {
+          "name": "tool_calls",
+          "type": "INTEGER"
+        },
+        {
+          "name": "failed_calls",
+          "type": "INTEGER"
+        },
+        {
+          "name": "note",
+          "type": "TEXT"
+        },
+        {
+          "name": "source",
+          "type": "TEXT"
+        },
+        {
+          "name": "regression",
+          "type": "INTEGER"
+        },
+        {
+          "name": "uid",
+          "type": "TEXT"
+        },
+        {
+          "name": "pushed",
+          "type": "INTEGER"
+        }
+      ]
+    },
+    {
+      "id": "items_fts",
+      "label": "items_fts",
+      "sublabel": "FTS5, porter",
+      "tag": "friction, kept",
+      "row": 2,
+      "col": 1,
+      "width": 250,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 101,
+          "end_line": 102
+        },
+        {
+          "path": "friction.py",
+          "line": 413,
+          "end_line": 419,
+          "label": "_index"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "rowid",
+          "type": "INTEGER",
+          "key": [
+            "pk",
+            "fk"
+          ],
+          "references": "items.id"
+        },
+        {
+          "name": "title",
+          "type": "TEXT"
+        },
+        {
+          "name": "detail",
+          "type": "TEXT"
+        },
+        {
+          "name": "workaround",
+          "type": "TEXT"
+        },
+        {
+          "name": "aliases",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "id": "backfill_sessions",
+      "label": "backfill_sessions",
+      "tag": "bookkeeping",
+      "row": 0,
+      "col": 2,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 104,
+          "end_line": 112
+        }
+      ],
+      "attributes": [
+        {
+          "name": "path",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "session_id",
+          "type": "TEXT",
+          "key": "fk",
+          "references": "sessions.session_id"
+        },
+        {
+          "name": "mtime",
+          "type": "REAL"
+        },
+        {
+          "name": "processed_at",
+          "type": "REAL"
+        },
+        {
+          "name": "failures",
+          "type": "INTEGER"
+        },
+        {
+          "name": "filed",
+          "type": "INTEGER"
+        },
+        {
+          "name": "status",
+          "type": "TEXT"
+        }
+      ]
+    },
+    {
+      "id": "meta",
+      "label": "meta",
+      "sublabel": "sync state",
+      "tag": "bookkeeping",
+      "row": 1,
+      "col": 2,
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 114
+        },
+        {
+          "path": "friction.py",
+          "line": 232,
+          "end_line": 239,
+          "label": "meta()"
+        }
+      ],
+      "attributes": [
+        {
+          "name": "k",
+          "type": "TEXT",
+          "key": "pk"
+        },
+        {
+          "name": "v",
+          "type": "TEXT"
+        }
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "id": "occ-item",
+      "from": "occurrences",
+      "to": "items",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "item_id"
+    },
+    {
+      "id": "fts-item",
+      "from": "items_fts",
+      "to": "items",
+      "fromCardinality": "one",
+      "toCardinality": "one",
+      "label": "rowid",
+      "identifying": false,
+      "variant": "dashed"
+    },
+    {
+      "id": "event-session",
+      "from": "events",
+      "to": "sessions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "label": "session_id",
+      "identifying": false,
+      "variant": "dashed"
+    },
+    {
+      "id": "occ-session",
+      "from": "occurrences",
+      "to": "sessions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "toOptional": true,
+      "label": "session_id",
+      "identifying": false,
+      "variant": "dashed"
+    },
+    {
+      "id": "occ-event",
+      "from": "occurrences",
+      "to": "events",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "toOptional": true,
+      "label": "from/to_event",
+      "identifying": false,
+      "variant": "dashed"
+    },
+    {
+      "id": "bf-session",
+      "from": "backfill_sessions",
+      "to": "sessions",
+      "fromCardinality": "many",
+      "toCardinality": "one",
+      "toOptional": true,
+      "label": "session_id",
+      "identifying": false,
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Declared vs logical keys",
+      "items": [
+        "Only occurrences.item_id is a declared REFERENCES",
+        "Dashed links are joins the code makes, not constraints",
+        "items.merged_into points back at items: a merged item follows it to the survivor"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Retention",
+      "items": [
+        "events and sessions are deleted after 30 days",
+        "items and occurrences are kept; evidence links go stale"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Sync columns",
+      "items": [
+        "remote_key, remote_url, dirty, uid, pushed came in with tracker sync",
+        "PRAGMA user_version counts applied migrations"
+      ]
+    }
+  ]
+}

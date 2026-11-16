@@ -1,0 +1,188 @@
+{
+  "schema_version": 3,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "friction: item lifecycle",
+    "output": "diagrams/item-lifecycle.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/martinwheeler/friction.git",
+      "provider": "github",
+      "revision": "3e8ebabe23260f3fa8009c8d332444a1810c1615"
+    }
+  },
+  "mainPath": [
+    "created",
+    "open",
+    "resolved"
+  ],
+  "states": [
+    {
+      "id": "created",
+      "type": "start",
+      "label": "Created",
+      "sublabel": "log, backfill or Jira pull",
+      "step": "01",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 454,
+          "end_line": 460,
+          "label": "create()"
+        },
+        {
+          "path": "backfill.py",
+          "line": 268,
+          "end_line": 271,
+          "label": "analyser finding"
+        },
+        {
+          "path": "tracker.py",
+          "line": 354,
+          "end_line": 361,
+          "label": "pulled issue"
+        }
+      ]
+    },
+    {
+      "id": "open",
+      "type": "active",
+      "label": "Open",
+      "sublabel": "counts toward hot list",
+      "tag": "status = open",
+      "step": "02",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 559,
+          "end_line": 566,
+          "label": "hot()"
+        }
+      ]
+    },
+    {
+      "id": "resolved",
+      "type": "success",
+      "label": "Resolved",
+      "sublabel": "cause fixed, fix note kept",
+      "tag": "status = resolved",
+      "step": "03",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 517,
+          "end_line": 528,
+          "label": "set_status()"
+        },
+        {
+          "path": "friction.py",
+          "line": 481,
+          "end_line": 494,
+          "label": "regression check"
+        }
+      ]
+    },
+    {
+      "id": "wontfix",
+      "type": "neutral",
+      "label": "Won't fix",
+      "sublabel": "accepted, hidden from hot",
+      "tag": "status = wontfix",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 788,
+          "end_line": 790,
+          "label": "cmd_wontfix"
+        }
+      ]
+    },
+    {
+      "id": "merged",
+      "type": "neutral",
+      "label": "Merged",
+      "sublabel": "title kept as an alias",
+      "tag": "terminal",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 530,
+          "end_line": 555,
+          "label": "merge()"
+        }
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "id": "created-open",
+      "from": "created",
+      "to": "open",
+      "label": "first occurrence"
+    },
+    {
+      "id": "open-resolved",
+      "from": "open",
+      "to": "resolved",
+      "label": "resolve --fix",
+      "variant": "emphasis",
+      "note": "or the Jira issue moves to done"
+    },
+    {
+      "id": "resolved-open",
+      "from": "resolved",
+      "to": "open",
+      "label": "hit again: regression",
+      "variant": "security",
+      "note": "regressions + 1; reopen or Jira reopen too"
+    },
+    {
+      "id": "open-wontfix",
+      "from": "open",
+      "to": "wontfix",
+      "label": "wontfix"
+    },
+    {
+      "id": "wontfix-open",
+      "from": "wontfix",
+      "to": "open",
+      "label": "reopen"
+    },
+    {
+      "id": "open-merged",
+      "from": "open",
+      "to": "merged",
+      "label": "merge src dst",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Bumps",
+      "items": [
+        "Every bump adds an occurrence; the status stays open",
+        "Only open items reach the SessionStart hot list"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Regressions",
+      "items": [
+        "A live hit after resolved_at reopens the item",
+        "Backfilled hits from before the fix do not",
+        "Hits on a wontfix item do not reopen it"
+      ]
+    },
+    {
+      "dot": "slate",
+      "title": "Merge",
+      "items": [
+        "Any status can be merged into another item",
+        "Occurrences move to the destination",
+        "Lookups of the old id follow merged_into"
+      ]
+    }
+  ]
+}

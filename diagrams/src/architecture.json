@@ -1,0 +1,413 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "friction: system overview",
+    "output": "diagrams/architecture.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/martinwheeler/friction.git",
+      "provider": "github",
+      "revision": "3e8ebabe23260f3fa8009c8d332444a1810c1615"
+    }
+  },
+  "components": [
+    {
+      "id": "agent",
+      "type": "external",
+      "label": "Agent session",
+      "sublabel": "Claude Code / Codex",
+      "pos": [
+        40,
+        200
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "sources": [
+        {
+          "path": "installer.py",
+          "line": 106,
+          "end_line": 111,
+          "label": "hook registration"
+        }
+      ]
+    },
+    {
+      "id": "hook",
+      "type": "backend",
+      "label": "friction_hook.py",
+      "sublabel": "5 hook events",
+      "pos": [
+        330,
+        40
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "sources": [
+        {
+          "path": "friction_hook.py",
+          "line": 119,
+          "end_line": 161,
+          "label": "handle()"
+        }
+      ]
+    },
+    {
+      "id": "cli",
+      "type": "backend",
+      "label": "friction CLI",
+      "sublabel": "friction.py",
+      "pos": [
+        330,
+        360
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 700,
+          "end_line": 720,
+          "label": "log / bump"
+        },
+        {
+          "path": "friction.py",
+          "line": 1015,
+          "end_line": 1025,
+          "label": "main()"
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "friction.db",
+      "sublabel": "SQLite WAL + FTS5",
+      "pos": [
+        640,
+        190
+      ],
+      "size": [
+        180,
+        96
+      ],
+      "tag": "~/.local/share/friction",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 34,
+          "end_line": 115,
+          "label": "schema"
+        },
+        {
+          "path": "friction.py",
+          "line": 212,
+          "end_line": 230,
+          "label": "open + migrate"
+        }
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "Web view",
+      "sublabel": "web.py + web.html",
+      "pos": [
+        950,
+        40
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "sources": [
+        {
+          "path": "web.py",
+          "line": 43,
+          "end_line": 64,
+          "label": "routes"
+        }
+      ]
+    },
+    {
+      "id": "user",
+      "type": "external",
+      "label": "You",
+      "sublabel": "browser",
+      "pos": [
+        1240,
+        40
+      ],
+      "size": [
+        150,
+        70
+      ],
+      "sources": [
+        {
+          "path": "web.html",
+          "line": 106,
+          "label": "fetch /api/report"
+        }
+      ]
+    },
+    {
+      "id": "backfill",
+      "type": "backend",
+      "label": "Backfill",
+      "sublabel": "backfill.py",
+      "pos": [
+        950,
+        360
+      ],
+      "size": [
+        180,
+        76
+      ],
+      "sources": [
+        {
+          "path": "backfill.py",
+          "line": 280,
+          "end_line": 336,
+          "label": "run()"
+        },
+        {
+          "path": "installer.py",
+          "line": 141,
+          "end_line": 153,
+          "label": "timer unit"
+        }
+      ],
+      "tag": "nightly 03:30"
+    },
+    {
+      "id": "transcripts",
+      "type": "database",
+      "label": "Transcripts",
+      "sublabel": "~/.claude, ~/.codex",
+      "pos": [
+        950,
+        560
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "sources": [
+        {
+          "path": "backfill.py",
+          "line": 143,
+          "end_line": 157,
+          "label": "transcripts()"
+        }
+      ]
+    },
+    {
+      "id": "analyser",
+      "type": "external",
+      "label": "claude -p",
+      "sublabel": "haiku, no tools",
+      "pos": [
+        1240,
+        560
+      ],
+      "size": [
+        170,
+        70
+      ],
+      "sources": [
+        {
+          "path": "backfill.py",
+          "line": 225,
+          "end_line": 247,
+          "label": "analyse()"
+        }
+      ]
+    },
+    {
+      "id": "tracker",
+      "type": "backend",
+      "label": "Tracker sync",
+      "sublabel": "tracker.py",
+      "tag": "off by default",
+      "pos": [
+        640,
+        560
+      ],
+      "size": [
+        180,
+        76
+      ],
+      "sources": [
+        {
+          "path": "tracker.py",
+          "line": 463,
+          "end_line": 482,
+          "label": "sync()"
+        },
+        {
+          "path": "friction.py",
+          "line": 881,
+          "end_line": 892,
+          "label": "kick_sync()"
+        }
+      ]
+    },
+    {
+      "id": "jira",
+      "type": "cloud",
+      "label": "Jira Cloud",
+      "sublabel": "REST API v3",
+      "pos": [
+        640,
+        760
+      ],
+      "size": [
+        180,
+        70
+      ],
+      "sources": [
+        {
+          "path": "tracker.py",
+          "line": 236,
+          "end_line": 267,
+          "label": "Jira client"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Your machine",
+      "wraps": [
+        "hook",
+        "cli",
+        "db",
+        "web",
+        "backfill",
+        "transcripts",
+        "tracker"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "agent-hook",
+      "from": "agent",
+      "to": "hook",
+      "label": "hook JSON on stdin",
+      "variant": "emphasis"
+    },
+    {
+      "id": "hook-agent",
+      "from": "hook",
+      "to": "agent",
+      "label": "hot list, nudge",
+      "variant": "dashed"
+    },
+    {
+      "id": "agent-cli",
+      "from": "agent",
+      "to": "cli",
+      "label": "friction log / bump",
+      "variant": "emphasis"
+    },
+    {
+      "id": "hook-db",
+      "from": "hook",
+      "to": "db",
+      "label": "events"
+    },
+    {
+      "id": "cli-db",
+      "from": "cli",
+      "to": "db",
+      "label": "items, hits"
+    },
+    {
+      "id": "user-web",
+      "from": "user",
+      "to": "web",
+      "label": "HTTP :8798"
+    },
+    {
+      "id": "web-db",
+      "from": "web",
+      "to": "db",
+      "label": "read-only"
+    },
+    {
+      "id": "backfill-transcripts",
+      "from": "backfill",
+      "to": "transcripts",
+      "label": "parse"
+    },
+    {
+      "id": "backfill-analyser",
+      "from": "backfill",
+      "to": "analyser",
+      "label": "excerpt"
+    },
+    {
+      "id": "backfill-db",
+      "from": "backfill",
+      "to": "db",
+      "label": "events, hits"
+    },
+    {
+      "id": "cli-tracker",
+      "from": "cli",
+      "to": "tracker",
+      "label": "background sync",
+      "variant": "dashed"
+    },
+    {
+      "id": "tracker-db",
+      "from": "tracker",
+      "to": "db",
+      "label": "dirty items"
+    },
+    {
+      "id": "tracker-jira",
+      "from": "tracker",
+      "to": "jira",
+      "label": "pull, push",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Live path",
+      "items": [
+        "Hooks time every tool call into events",
+        "Agents name the friction with friction log or bump",
+        "SessionStart hands every new session the hot list"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Catch-up path",
+      "items": [
+        "Nightly backfill rebuilds events from transcripts",
+        "Only sessions with 2+ unlogged failures reach the model"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Leaves the machine",
+      "items": [
+        "Transcript excerpts to claude -p, if backfill runs",
+        "Items and hits to Jira, only when sync is enabled",
+        "Raw tool events never do"
+      ]
+    }
+  ]
+}

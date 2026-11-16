@@ -1,0 +1,5 @@
+title: friction docs
+description: How friction works, with diagrams
+theme: jekyll-theme-primer
+exclude:
+  - diagrams/src

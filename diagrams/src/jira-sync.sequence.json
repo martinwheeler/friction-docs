@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "friction: Jira sync, one run",
+    "output": "diagrams/jira-sync-sequence.html",
+    "quality_profile": "showcase",
+    "locale": "en",
+    "repository": {
+      "url": "https://github.com/martinwheeler/friction.git",
+      "provider": "github",
+      "revision": "3e8ebabe23260f3fa8009c8d332444a1810c1615"
+    }
+  },
+  "participants": [
+    {
+      "id": "trigger",
+      "type": "external",
+      "label": "CLI / hook",
+      "sublabel": "kick_sync()",
+      "sources": [
+        {
+          "path": "friction.py",
+          "line": 881,
+          "end_line": 892,
+          "label": "kick_sync"
+        },
+        {
+          "path": "friction.py",
+          "line": 1012,
+          "end_line": 1022,
+          "label": "SYNC_AFTER"
+        },
+        {
+          "path": "friction_hook.py",
+          "line": 133,
+          "end_line": 137,
+          "label": "SessionStart kick"
+        }
+      ]
+    },
+    {
+      "id": "sync",
+      "type": "backend",
+      "label": "tracker.py",
+      "sublabel": "friction sync",
+      "sources": [
+        {
+          "path": "tracker.py",
+          "line": 463,
+          "end_line": 482,
+          "label": "sync()"
+        },
+        {
+          "path": "tracker.py",
+          "line": 533,
+          "end_line": 575,
+          "label": "run()"
+        }
+      ]
+    },
+    {
+      "id": "db",
+      "type": "database",
+      "label": "friction.db",
+      "sublabel": "working copy",
+      "sources": [
+        {
+          "path": "tracker.py",
+          "line": 351,
+          "end_line": 398,
+          "label": "apply_remote()"
+        },
+        {
+          "path": "tracker.py",
+          "line": 401,
+          "end_line": 449,
+          "label": "push_item()"
+        }
+      ]
+    },
+    {
+      "id": "jira",
+      "type": "cloud",
+      "label": "Jira Cloud",
+      "sublabel": "REST API v3",
+      "sources": [
+        {
+          "path": "tracker.py",
+          "line": 236,
+          "end_line": 341,
+          "label": "Jira client"
+        }
+      ]
+    }
+  ],
+  "segments": [
+    {
+      "from": 160,
+      "to": 225,
+      "label": "Start, only when enabled = true"
+    },
+    {
+      "from": 230,
+      "to": 450,
+      "label": "Pull"
+    },
+    {
+      "from": 455,
+      "to": 720,
+      "label": "Push"
+    }
+  ],
+  "messages": [
+    {
+      "id": "spawn",
+      "from": "trigger",
+      "to": "sync",
+      "y": 170,
+      "label": "detached friction sync --quiet",
+      "variant": "dashed",
+      "note": "after log, bump, resolve...; SessionStart at most every 10 min"
+    },
+    {
+      "id": "search",
+      "from": "sync",
+      "to": "jira",
+      "y": 240,
+      "label": "POST /search/jql",
+      "variant": "security",
+      "note": "label = friction, updated since last pull + 10 min"
+    },
+    {
+      "id": "issues",
+      "from": "jira",
+      "to": "sync",
+      "y": 296,
+      "label": "issues",
+      "variant": "return"
+    },
+    {
+      "id": "comments",
+      "from": "sync",
+      "to": "jira",
+      "y": 330,
+      "label": "GET comments",
+      "variant": "security"
+    },
+    {
+      "id": "hits",
+      "from": "jira",
+      "to": "sync",
+      "y": 364,
+      "label": "[friction:hit uid=...] tokens",
+      "variant": "return"
+    },
+    {
+      "id": "apply",
+      "from": "sync",
+      "to": "db",
+      "y": 398,
+      "label": "update items, add new hits",
+      "note": "locally dirty fields win; hits dedupe on uid"
+    },
+    {
+      "id": "pending",
+      "from": "sync",
+      "to": "db",
+      "y": 466,
+      "label": "select new, dirty, unpushed"
+    },
+    {
+      "id": "rows",
+      "from": "db",
+      "to": "sync",
+      "y": 500,
+      "label": "items",
+      "variant": "return"
+    },
+    {
+      "id": "create",
+      "from": "sync",
+      "to": "jira",
+      "y": 534,
+      "label": "POST /issue (new item)",
+      "variant": "security"
+    },
+    {
+      "id": "comment",
+      "from": "sync",
+      "to": "jira",
+      "y": 568,
+      "label": "POST comment per occurrence",
+      "variant": "security"
+    },
+    {
+      "id": "update",
+      "from": "sync",
+      "to": "jira",
+      "y": 602,
+      "label": "PUT /issue: text, totals, label",
+      "variant": "security"
+    },
+    {
+      "id": "transition",
+      "from": "sync",
+      "to": "jira",
+      "y": 636,
+      "label": "POST transition: done / not done",
+      "variant": "security"
+    },
+    {
+      "id": "clear",
+      "from": "sync",
+      "to": "db",
+      "y": 670,
+      "label": "clear dirty bits, pushed = 1",
+      "note": "only the bits it sent; offline stops the run"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Switch",
+      "items": [
+        "~/.config/friction/config.ini, enabled = false by default",
+        "--enable writes a template, then checks the connection first"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Mapping",
+      "items": [
+        "item = issue with the friction label",
+        "occurrence = comment ending in a hit token",
+        "resolve / wontfix = done status; wontfix adds friction-wontfix"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Sent",
+      "items": [
+        "Titles, details, workarounds, notes, project and agent names, timings",
+        "Never raw tool events"
+      ]
+    }
+  ]
+}

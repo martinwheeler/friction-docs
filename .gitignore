@@ -1,0 +1,4 @@
+diagrams/*.finalize.json
+diagrams/*.finalize-summary.json
+diagrams/*.delivery.json
+diagrams/*.browser-check.json
