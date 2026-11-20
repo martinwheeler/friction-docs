@@ -79,8 +79,8 @@ only by the backfill.
 
 ## 1. Hooks record every tool call
 
-The installer registers one command, `friction_hook.py`, for five hook events. Claude Code sends
-all five; Codex sends four (it has no `PostToolUseFailure`) and gets `--agent codex` on the
+The installer registers one command, `friction_hook.py`, for seven hook events. Claude Code sends
+all seven; Codex sends six (it has no `PostToolUseFailure`) and gets `--agent codex` on the
 command line. Each hook has a 5 second timeout and the script exits 0 on any error, so a broken
 database can never break an agent session. `FRICTION_DISABLE=1` turns it off for a process and
 its children.
@@ -93,7 +93,13 @@ the agent, working directory, project and transcript path, then:
 | `PreToolUse` | inserts an `events` row with `ok = NULL` (in flight), the tool name, its `tool_use_id` and a one-line summary of the input (the command for shell tools, otherwise key fields such as `file_path` or `url`) |
 | `PostToolUse` / `PostToolUseFailure` | finds the open event by `tool_use_id` (falling back to the newest open event for that tool) and closes it with `ok`, duration and error text. If there is no open event, because the hook was installed mid-session, it records the call untimed |
 | `SessionStart` | returns `additionalContext`: a paragraph saying the tool exists, then the hot list. Also starts a background tracker sync, at most every 10 minutes |
-| `Stop` | asks the agent once whether its recent failures were friction (see [Nudges](#4-the-list-comes-back)) |
+| `Stop` | asks the agent once whether its recent failures were friction (see [Nudges](#4-the-list-comes-back)). If it does not block, the turn is over: opens a `prompt` wait |
+| `UserPromptSubmit` | closes the open wait: the user has answered |
+| `PermissionRequest` | opens a `permission` wait, closed when the call finishes (or by the next call or prompt, if it was denied) |
+
+Waits are `events` rows with `kind = 'wait'` and the reason in `tool`. A question tool
+(`AskUserQuestion`, `ExitPlanMode`, Codex `request_user_input`) also records its whole run as a
+wait when it finishes.
 
 Subagents report with an `agent_id`. Their tool calls are recorded, but they get no SessionStart
 context and no Stop nudge.
@@ -155,8 +161,13 @@ friction that began earlier or involved no failed call.
 
 **Active time only.** The window is not simply end minus start. Walking the calls in order, each
 gap to the next call counts in full only if it is no longer than the call's own duration plus 5
-minutes. A longer gap is the session sitting idle (you were away, or it was waiting for a
-prompt), so only the call's own duration counts.
+minutes. A longer gap is the session sitting idle (you were away), so only the call's own
+duration counts.
+
+**Never the user's time.** Any part of the window covered by a wait is then taken out, however
+short: from the end of a turn to the next prompt, a permission prompt, a question tool. That time
+is pending user input, not friction. A wait whose closing hook never fired runs until the next
+tool call.
 
 **After logging,** the session's `mark_event` moves to the newest event, so the same failures
 are not counted twice and the Stop nudge stops asking about them.
@@ -219,7 +230,10 @@ sessions that might contain friction.
    and the analyser's own working directory.
 2. Parse each one into timed tool calls. Claude Code transcripts pair `tool_use` with
    `tool_result` blocks; Codex rollouts pair `function_call` with `function_call_output`, using
-   the same failure rules as the hook.
+   the same failure rules as the hook. Waits come out of the transcript too: in Claude Code, the
+   gap from the agent's last message to each prompt the user typed; in Codex, from
+   `task_complete` (or `turn_aborted`) to the next `task_started`; and the run of question tools.
+   Permission prompts are not visible in transcripts, so their time stays inside the call.
 3. Import the calls as `events` with `source = 'transcript'`, unless the live hook already
    recorded that session.
 4. Keep the session only if it has at least `--min-failures` (2) unlogged failures. Otherwise mark
@@ -356,7 +370,7 @@ removes links, hooks and services but leaves the database.
 python3 -m unittest test_friction test_tracker
 ```
 
-`test_friction.py` covers redaction, search, timing windows (streaks, idle gaps, `--from`,
+`test_friction.py` covers redaction, search, timing windows (streaks, idle gaps, user waits, `--from`,
 estimates), regressions, merge, pruning, the hook events and Claude transcript parsing.
 `test_tracker.py` runs sync against an in-memory fake Jira, including two machines sharing one
 project, status changes both ways, offline changes and the off-by-default switch. CI runs both on Linux and macOS with
