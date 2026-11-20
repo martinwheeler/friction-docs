@@ -167,7 +167,9 @@ duration counts.
 **Never the user's time.** Any part of the window covered by a wait is then taken out, however
 short: from the end of a turn to the next prompt, a permission prompt, a question tool. That time
 is pending user input, not friction. A wait whose closing hook never fired runs until the next
-tool call.
+tool call. `friction retime` applies this to occurrences logged earlier: it reads each session's
+waits from its transcript (as backfill does) and re-measures the occurrence over its original
+window, which needs the raw events to still be within the 30 day retention.
 
 **After logging,** the session's `mark_event` moves to the newest event, so the same failures
 are not counted twice and the Stop nudge stops asking about them.
