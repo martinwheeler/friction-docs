@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/martinwheeler/friction.git",
       "provider": "github",
-      "revision": "3e8ebabe23260f3fa8009c8d332444a1810c1615"
+      "revision": "fcda2885e11e3701001acbdc7b6e73b108a278c5"
     }
   },
   "participants": [
@@ -35,15 +35,15 @@
       "sources": [
         {
           "path": "friction_hook.py",
-          "line": 119,
-          "end_line": 161,
+          "line": 157,
+          "end_line": 215,
           "label": "handle()"
         },
         {
           "path": "friction_hook.py",
-          "line": 67,
-          "end_line": 88,
-          "label": "failed()"
+          "line": 77,
+          "end_line": 120,
+          "label": "failed(), soft_outcome()"
         }
       ]
     },
@@ -55,15 +55,15 @@
       "sources": [
         {
           "path": "friction.py",
-          "line": 673,
-          "end_line": 720,
+          "line": 1070,
+          "end_line": 1140,
           "label": "_occur, log, bump"
         },
         {
           "path": "friction.py",
-          "line": 348,
-          "end_line": 409,
-          "label": "window()"
+          "line": 582,
+          "end_line": 810,
+          "label": "clusters(), window()"
         }
       ]
     },
@@ -148,14 +148,15 @@
       "y": 260,
       "label": "PostToolUse[Failure]",
       "variant": "emphasis",
-      "note": "exit code, is_error, error text decide ok"
+      "note": "exit code and is_error decide ok; output snippet checked for soft failures"
     },
     {
       "id": "close-event",
       "from": "hook",
       "to": "db",
       "y": 316,
-      "label": "close event: ok, duration, error"
+      "label": "close event: ok, outcome, duration",
+      "note": "hard or soft failure"
     },
     {
       "id": "log",
@@ -203,14 +204,14 @@
       "to": "db",
       "y": 562,
       "label": "measure window",
-      "note": "start of failure streak to now, idle gaps over 5 min dropped"
+      "note": "first bad call to resolution call"
     },
     {
       "id": "occur",
       "from": "cli",
       "to": "db",
       "y": 618,
-      "label": "insert occurrence, set mark"
+      "label": "insert occurrence, move mark to window end"
     },
     {
       "id": "workaround",
@@ -242,7 +243,7 @@
       "y": 774,
       "label": "block: was that friction?",
       "variant": "return",
-      "note": "only with 2+ unlogged failures, once per streak"
+      "note": "only with 2+ unlogged bad calls, once per cluster"
     },
     {
       "id": "start",
@@ -265,7 +266,8 @@
       "to": "agent",
       "y": 914,
       "label": "additionalContext: hot list",
-      "variant": "return"
+      "variant": "return",
+      "note": "verified workarounds only"
     }
   ],
   "cards": [
@@ -273,8 +275,9 @@
       "dot": "emerald",
       "title": "Measured time",
       "items": [
-        "Hook timestamps bound the window",
-        "--from <event> moves its start",
+        "Bad call: hard failure or soft one (outcome)",
+        "Window ends at the first clean call after the last bad one, not now",
+        "--from / --to <event> set either end",
         "--wasted is only a fallback, flagged as an estimate"
       ]
     },

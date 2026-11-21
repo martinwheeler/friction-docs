@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/martinwheeler/friction.git",
       "provider": "github",
-      "revision": "3e8ebabe23260f3fa8009c8d332444a1810c1615"
+      "revision": "fcda2885e11e3701001acbdc7b6e73b108a278c5"
     }
   },
   "lanes": [
@@ -85,18 +85,24 @@
       "col": 1,
       "type": "backend",
       "label": "Parse tool calls",
-      "sublabel": "Claude + Codex formats",
+      "sublabel": "keeps output for soft failures",
       "sources": [
         {
           "path": "backfill.py",
-          "line": 59,
-          "end_line": 94,
+          "line": 87,
+          "end_line": 137,
           "label": "parse_claude"
         },
         {
           "path": "backfill.py",
-          "line": 97,
-          "end_line": 140,
+          "line": 139,
+          "end_line": 163,
+          "label": "classify_outcomes (soft + retry)"
+        },
+        {
+          "path": "backfill.py",
+          "line": 187,
+          "end_line": 243,
           "label": "parse_codex"
         }
       ]
@@ -107,13 +113,19 @@
       "col": 2,
       "type": "database",
       "label": "Import events",
-      "sublabel": "source = transcript",
+      "sublabel": "older than first hook event, renumbered",
       "sources": [
         {
           "path": "backfill.py",
-          "line": 160,
-          "end_line": 176,
+          "line": 267,
+          "end_line": 295,
           "label": "import_events()"
+        },
+        {
+          "path": "backfill.py",
+          "line": 304,
+          "end_line": 345,
+          "label": "renumber()"
         }
       ]
     },
@@ -122,13 +134,13 @@
       "lane": "py",
       "col": 3,
       "type": "security",
-      "label": "2+ unlogged failures?",
-      "sublabel": "after the session mark",
+      "label": "2+ unlogged bad calls?",
+      "sublabel": "failed, soft or retried",
       "sources": [
         {
           "path": "backfill.py",
-          "line": 298,
-          "end_line": 304,
+          "line": 831,
+          "end_line": 837,
           "label": "min-failures gate"
         }
       ]
@@ -155,13 +167,13 @@
       "col": 4,
       "type": "backend",
       "label": "Build prompt",
-      "sublabel": "failures + item list",
+      "sublabel": "whole clusters, 160 lines, 3 chunks",
       "sources": [
         {
           "path": "backfill.py",
-          "line": 179,
-          "end_line": 222,
-          "label": "excerpt, build_prompt"
+          "line": 479,
+          "end_line": 533,
+          "label": "excerpt_clusters, build_prompt"
         }
       ]
     },
@@ -171,20 +183,43 @@
       "col": 5,
       "type": "cloud",
       "label": "claude -p",
-      "sublabel": "haiku, no tools",
-      "tag": "JSON findings",
+      "sublabel": "default: haiku, --json-schema",
+      "tag": "strict-validated findings",
       "sources": [
         {
           "path": "backfill.py",
-          "line": 225,
-          "end_line": 247,
+          "line": 596,
+          "end_line": 621,
           "label": "analyse()"
         },
         {
           "path": "backfill.py",
-          "line": 30,
-          "end_line": 49,
-          "label": "system prompt"
+          "line": 549,
+          "end_line": 580,
+          "label": "validate_findings"
+        },
+        {
+          "path": "backfill.py",
+          "line": 660,
+          "end_line": 679,
+          "label": "process_claude"
+        }
+      ]
+    },
+    {
+      "id": "jev",
+      "lane": "model",
+      "col": 4,
+      "type": "cloud",
+      "label": "Jev (optional)",
+      "sublabel": "classifier: jev, off by default",
+      "tag": "kind + match per cluster",
+      "sources": [
+        {
+          "path": "backfill.py",
+          "line": 713,
+          "end_line": 769,
+          "label": "process_hybrid"
         }
       ]
     },
@@ -194,19 +229,19 @@
       "col": 5,
       "type": "database",
       "label": "File occurrences",
-      "sublabel": "source = backfill",
+      "sublabel": "source = backfill, new items verified=0",
       "sources": [
         {
           "path": "backfill.py",
-          "line": 250,
-          "end_line": 277,
+          "line": 623,
+          "end_line": 658,
           "label": "file_findings()"
         },
         {
           "path": "backfill.py",
-          "line": 325,
-          "end_line": 328,
-          "label": "set mark"
+          "line": 672,
+          "end_line": 676,
+          "label": "mark past analysed clusters"
         }
       ]
     }
@@ -261,6 +296,30 @@
       "label": "findings",
       "role": "main",
       "variant": "emphasis"
+    },
+    {
+      "id": "excerpt-jev",
+      "from": "excerpt",
+      "to": "jev",
+      "label": "if enabled",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "jev-file",
+      "from": "jev",
+      "to": "file",
+      "label": "match, conf >= 0.75",
+      "role": "branch",
+      "variant": "dashed"
+    },
+    {
+      "id": "jev-analyse",
+      "from": "jev",
+      "to": "analyse",
+      "label": "new: write text",
+      "role": "branch",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -279,7 +338,8 @@
       "items": [
         "Clean sessions never reach the model",
         "At most --limit sessions per run (40)",
-        "Sessions the hooks already saw are not re-imported"
+        "Whole-cluster chunks: 160 lines, up to 3 per run",
+        "Sessions the hooks saw are imported only back to their first hook event"
       ]
     },
     {
@@ -288,7 +348,8 @@
       "items": [
         "An analyser error leaves the session unprocessed",
         "The next run retries it",
-        "Findings must cite event ids from the excerpt"
+        "Invalid findings are dropped; the mark moves only past analysed clusters",
+        "Low-confidence Jev clusters are counted uncertain"
       ]
     }
   ]
