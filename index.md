@@ -278,7 +278,10 @@ way to inject text into agents. Items the backfill analyser creates are `verifie
 workaround came from a model reading tool output. For those, SessionStart, `hot`, `search` and
 `bump` show "(unverified workaround: run `friction show <id>`)" in place of the text, and the
 title is cut to 80 characters with backticks and newlines removed. `friction verify <id>` trusts
-the item, and setting the workaround with `friction workaround` does too.
+the item, and setting the workaround with `friction workaround` does too. Workarounds pulled from
+Jira are unverified unless the tracker config sets `trust_workarounds = true`. When a database is
+upgraded to the version with verification, every existing workaround (local, analyser-written or
+pulled from Jira) is marked unverified once, because none of them had been reviewed.
 
 **The Stop nudge.** When an agent finishes a turn with two or more bad calls (failed, or didn't do what was expected) that are neither
 logged nor already asked about, the Stop hook blocks once with a short message: if that was
