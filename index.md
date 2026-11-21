@@ -114,11 +114,24 @@ context and no Stop nudge.
 for a leading `error`, `exit code N`, `command failed`, `permission denied`, or an exit code
 pattern with a non-zero value.
 
-**Privacy on the way in.** Summaries and errors go through `redact()` before they are stored: it
-replaces API keys (`sk-`, `ghp_`, `github_pat_`, `xox?-`, `AKIA`, `AIza`), JWTs, bearer and basic
-credentials, `password=`-style assignments and passwords in URLs, collapses whitespace and cuts
-the text to 500 characters. Raw events are deleted after 30 days (`friction prune`, also run at
-the end of every backfill).
+**Privacy on the way in.** Secrets are found by [gitleaks](https://github.com/gitleaks/gitleaks),
+not by friction's own rules. The installer downloads a pinned gitleaks release into
+`~/.local/share/friction/bin` (no sudo) and checks it against SHA-256 hashes written into the
+installer; `friction doctor` shows which binary is used. Every finding is replaced with
+`[REDACTED:<rule>]`, whitespace is collapsed and the text is cut to 500 characters.
+
+The hook never waits for the scan. It records the event straight away with no text, then hands
+the raw command and error to a detached `friction scrub` process over a pipe. That process runs
+gitleaks and fills in the scanned text a fraction of a second later. The raw text is never
+written to the database, a file, the command line or the environment. If gitleaks is missing or
+fails, the text stays empty and new sessions are told why. Explicit writes (`log`, `workaround`,
+notes) and backfill scan synchronously and refuse to store text without the scanner.
+
+gitleaks' default rules target real credential formats and use entropy checks. That means fewer
+false hits than broad patterns, so `Authorization` header advice survives intact. It also means
+that low-entropy values such as `API_KEY=changeme123`, or a password inside a URL, may not be
+caught: do not rely on it for anything you would not put in a log. Raw events are deleted after
+30 days (`friction prune`, also run at the end of every backfill).
 
 ## 2. Agents name the friction
 
