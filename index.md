@@ -248,7 +248,13 @@ existed are corrected.
 
 **After logging,** the session's `mark_event` moves to the window's last event, so the same
 calls are not counted twice. Later bad calls stay unlogged, so a second problem in the same
-session can be logged and timed on its own.
+session can be logged and timed on its own. A bad call also counts as logged when it falls inside
+any occurrence's window, whatever the mark says, so backfill can lower the mark to bring in older
+calls without re-reporting ones already logged.
+
+**Re-timing keeps your choices.** `friction retime` re-measures with the current rules, but an
+end you set yourself (`--to`, or a backfill finding's end event) is kept. The occurrence's stored
+end event and call counts are refreshed along with its seconds.
 
 Each occurrence records where its number came from, and reports keep these apart:
 
@@ -317,7 +323,9 @@ sessions that might contain friction.
    and the analyser's own working directory.
 2. Parse each one into timed tool calls. Claude Code transcripts pair `tool_use` with
    `tool_result` blocks; Codex rollouts pair `function_call` with `function_call_output`, using
-   the same failure rules as the hook. Waits come out of the transcript too: in Claude Code, the
+   the same failure rules as the hook. Codex wraps shell output in a header (`Wall time: …`,
+   `Process exited with code N`, `Output:`, or `Script failed …` for its `exec` tool). The exit
+   code is read from that header, and only the body after it is checked for soft failures. Waits come out of the transcript too: in Claude Code, the
    gap from the agent's last message to each prompt the user typed; in Codex, from
    `task_complete` (or `turn_aborted`) to the next `task_started`; and the run of question tools.
    Permission prompts are not visible in transcripts, so their time stays inside the call.
@@ -422,6 +430,11 @@ the list fills with noise.
 | `/` | `web.html`, a single page with no external assets |
 | `/api/report?days=14&project=&agent=` | the same data as `friction report --json`: totals, per-item rows with a per-day breakdown, and project and agent facets |
 | `/api/item?id=N` | one item, its stats, and up to 100 occurrences with the recorded events behind each |
+
+Items whose workaround is unverified get a quiet "unverified" badge, and their workaround is shown
+muted with a `friction verify <id>` hint. Items with soft failures get a "N hard · M soft" badge.
+In an item's detail, soft calls are labelled `SOFT [reason]` and each occurrence reads "N calls, M
+bad (H hard, S soft)".
 
 ## 8. Jira sync (optional, off by default)
 
