@@ -7,7 +7,11 @@ title: How friction works
 This is the long version of the "How it works" section in the
 [friction README](https://github.com/martinwheeler/friction#how-it-works): what each part does,
 when it runs, what it stores and why. It describes the code at commit
-[`3e8ebab`](https://github.com/martinwheeler/friction/tree/3e8ebabe23260f3fa8009c8d332444a1810c1615).
+[`fcda288`](https://github.com/martinwheeler/friction/tree/fcda288).
+
+In a hurry? Read [the worked timing example](#a-worked-example) to see how a number like "46s
+wasted" is computed, and [backfill with Jev](#backfill-with-jev-optional) to see how unlogged
+friction is classified.
 
 ## Diagrams
 
@@ -19,7 +23,7 @@ to the source lines it describes.
 | [System overview](diagrams/architecture.html) | every component, what it reads and writes, what leaves the machine |
 | [One occurrence, end to end](diagrams/occurrence-sequence.html) | a failing tool call, the agent logging it, the next session hearing about it |
 | [Item lifecycle](diagrams/item-lifecycle.html) | open, resolved, wontfix, merged, and how regressions reopen an item |
-| [Nightly backfill](diagrams/backfill-workflow.html) | how past transcripts are mined for friction nobody logged |
+| [Nightly backfill](diagrams/backfill-workflow.html) | how past transcripts are mined for friction nobody logged, with the optional Jev branch |
 | [Jira sync, one run](diagrams/jira-sync-sequence.html) | the pull and push steps when tracker sync is on |
 | [Database schema](diagrams/schema-erd.html) | every table and column in `friction.db` |
 
@@ -153,6 +157,54 @@ The session row supplies the agent and project. The project is the first directo
 An occurrence's wasted time comes from the recorded events wherever possible, not from the
 agent's guess.
 
+[![One occurrence end to end: hooks record each call as ok, failed or soft; the agent logs or bumps an item; friction measures the window from the first bad call to the resolution call and moves the mark there; the next session gets the hot list with verified workarounds only](images/occurrence-sequence.png)](diagrams/occurrence-sequence.html)
+
+### A worked example
+
+In this session an agent's GitHub token has expired. This is the session's timeline as
+`friction timeline` prints it. The numbers below come from running this exact timeline through
+friction's own code, not from working them out by hand.
+
+```
+ id  start    state  took  call
+  1  10:00:00 FAIL   2.0s  Bash: gh pr list                     -> HTTP 401: Bad credentials
+  2  10:00:12 FAIL   2.0s  Bash: gh pr list --repo acme/web-app -> HTTP 401: Bad credentials
+  3  10:00:25 SOFT   1.0s  Bash: gh api user [auth]             -> {"message": "Bad credentials"}
+  4  10:00:40 ok    95.0s  AskUserQuestion: Can you re-run gh auth login?
+  6  10:02:20 ok     1.0s  Bash: gh auth status
+  7  10:02:30 ok     2.0s  Bash: gh pr list
+  8  10:02:50 ok     0.1s  Edit: src/api.ts
+  9  10:03:20 ok    60.0s  Bash: npm test
+ 10  10:05:00 ok     0.1s  Edit: src/api.ts
+ 11  10:05:20 ok    55.0s  Bash: npm test
+     … the agent finishes the task; the Stop hook nudges it …
+ 12  10:15:00 …     0.5s  Bash: friction log "gh auth token expired"
+```
+
+(Event 5, not shown, is the wait record for the question in event 4.)
+
+How friction turns that into a number:
+
+1. **Find the bad calls.** Calls 1 and 2 failed. Call 3 exited 0 but printed "Bad credentials",
+   so it is recorded as a soft failure with the reason `auth`. Together they form one cluster.
+2. **Find where it ended.** The *resolution call* is the first clean call after the last bad
+   one: call 6, `gh auth status`, which ends at 10:02:21. The question tool in call 4 is ignored
+   for this, because it is neither a bad call nor proof that anything worked.
+3. **Take the span.** From 10:00:00 to 10:02:21 is 141 s.
+4. **Take out your time.** The agent spent 95 s waiting on you to answer the question. Pending
+   user input is never friction, so 141 − 95 = **46 s wasted**: 5 tool calls, 3 of them bad.
+
+Everything after call 6 is the actual task (edits, test runs), so it is not counted. Before
+this rule existed, the window ran up to the `friction log` call itself and this same session
+would have been charged **280 s**. Even that figure was held down only because the 9-minute
+quiet gap before the log call counts as idle time.
+
+You can question any step: `friction show <id> --events` lists the recorded calls behind each
+occurrence, and `--from` / `--to` on `log` and `bump` move either end of the window when the
+default is wrong.
+
+### The rules
+
 **Bad calls.** A *bad call* is a hard failure (the tool reported an error or a non-zero exit) or a
 *soft* one: the call succeeded but plainly did not do what the agent wanted. Soft failures are
 recorded in `events.outcome` with a reason, and their output snippet is kept in `error`:
@@ -255,6 +307,8 @@ See the [backfill diagram](diagrams/backfill-workflow.html). `friction backfill 
 every night at 03:30 as a systemd timer or LaunchAgent. It has two stages so the model only sees
 sessions that might contain friction.
 
+[![The nightly backfill: stage 1 in Python finds transcripts, parses tool calls and keeps sessions with unlogged bad calls; stage 2 classifies them with claude -p, or optionally Jev, and files occurrences](images/backfill-workflow.png)](diagrams/backfill-workflow.html)
+
 **Stage 1, plain Python.**
 
 1. Find transcripts modified within `--since` and idle for at least 15 minutes:
@@ -296,17 +350,68 @@ sessions that might contain friction.
 
 If the analyser fails, the session is left unprocessed and the next run tries again.
 
-**Optional Jev classifier.** Off by default. With `"classifier": "jev"` in
-`~/.config/friction/classifier.json` (or `--classifier jev` for one run), stage 2 changes. For
-each cluster, Jev (TypeSafe's `api.typesafe.ai/v1/systemone`) answers two choice questions with
-probabilities: is it friction (versus task iteration, probing or noise), and which existing item
-it matches (or `new`). Only friction answers at or above `min_confidence` (0.75) are acted on.
-Matches are filed directly; only new friction goes to `claude -p`, to write the title and
-workaround. Uncertain clusters are still marked processed, and they are counted in the session's
-`backfill_sessions.status`. `friction backfill --jev-check` tests the key without sending any
-session data. Backfill is
-the only part of friction that sends anything to a model; skip the timer (`--no-services`) if you
-do not want that.
+Backfill is the only part of friction that sends anything to a model; skip the timer
+(`--no-services`) if you do not want that.
+
+### Backfill with Jev (optional)
+
+Off by default. [Jev](https://docs.typesafe.ai) is TypeSafe's judgement model: you give it state
+and a few typed questions, and it answers each with a choice plus a probability for every option.
+It does not write text. That suits the part of backfill that is really a decision, "is this
+friction, and is it one we already know?", and lets the threshold be a number you can tune.
+
+**Turning it on.** Put this in `~/.config/friction/classifier.json`, or pass
+`--classifier jev` for a single run:
+
+```json
+{"classifier": "jev",
+ "jev": {"key_file": "~/.config/jevgrep/credentials.json", "min_confidence": 0.75}}
+```
+
+The key file can be `apiKey=...`, a bare key, or JSON with an `apiKey` field (jevgrep's saved
+credentials work as-is). `friction backfill --jev-check` sends a made-up two-option question to
+test the key, with no session data.
+
+**What changes.** Stage 1 is the same. In stage 2, Python splits each session into clusters of
+bad calls, using the same rules as live timing. For each cluster it sends one request with two
+questions:
+
+| Question | Options |
+|---|---|
+| `kind`: what is this cluster? | `friction`, `task_iteration` (normal work on the task), `probe` (deliberately checking whether something exists), `noise` |
+| `match`: which known item is it? | the ids of up to 254 open items, plus `new` |
+
+The state sent with it is the session's agent and project, plus the cluster's excerpt (the bad
+calls with a little context, errors redacted, at most 6000 characters). Then:
+
+- `kind` is not `friction`, or its confidence is below `min_confidence`: nothing is filed. The
+  cluster is marked processed and counted as `skipped` or `uncertain`.
+- `match` is an existing item: an occurrence is filed on it, timed over the cluster's window as
+  in the worked example.
+- `match` is `new`: only now is `claude -p` called, with just this cluster, to write a title,
+  detail and workaround. The item is created unverified.
+
+**What the answers look like.** These are two real clusters from a trial run on this machine:
+
+| Cluster | `kind` answer | `match` answer | Result |
+|---|---|---|---|
+| one failed command, fixed on the next call | `task_iteration` 0.81, `friction` 0.16, `probe` 0.02 (confidence 0.75) | `new` 0.80 | skipped: not friction |
+| one failed command that looked like a check | `friction` 0.60, `probe` 0.38 (confidence 0.47) | `new` 0.98 | uncertain: below 0.75, not filed |
+
+Each request used about 2,900 input tokens. Leaning on the threshold means doubtful cases are
+left out rather than guessed at. Lower `min_confidence` if too little gets filed, and raise it if
+the list fills with noise.
+
+**Trade-offs against the default.**
+
+| | `claude -p` (default) | Jev hybrid |
+|---|---|---|
+| Classifies | the whole session excerpt at once | each cluster, as separate questions |
+| Output | free-form JSON findings, checked against a schema | typed answers with probabilities |
+| Threshold | none: whatever the model reports is filed | `min_confidence`, per answer |
+| Writes titles and workarounds | yes | no: hands new items to `claude -p` |
+| Needs | the `claude` CLI and your subscription | a TypeSafe key (plus `claude` for new items) |
+| Data leaves the machine to | Anthropic | TypeSafe, and Anthropic for new items |
 
 ## 7. The web view
 
