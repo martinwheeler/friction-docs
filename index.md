@@ -153,11 +153,32 @@ The session row supplies the agent and project. The project is the first directo
 An occurrence's wasted time comes from the recorded events wherever possible, not from the
 agent's guess.
 
-**The window.** By default the window starts at the beginning of the current failure streak:
-take the unlogged failed calls in this session (those after the session's `mark_event`), start
-from the newest, and walk back while consecutive failures are less than 10 minutes apart. The
-window ends now. `--from <event id>` (ids from `friction timeline`) starts it somewhere else, for
-friction that began earlier or involved no failed call.
+**Bad calls.** A *bad call* is a hard failure (the tool reported an error or a non-zero exit) or a
+*soft* one: the call succeeded but plainly did not do what the agent wanted. Soft failures are
+recorded in `events.outcome` with a reason, and their output snippet is kept in `error`:
+
+| `outcome` | When |
+|---|---|
+| `not_found` | a shell command printed a `prog: ...: command not found` / `No such file or directory` line with exit 0, or a network command got HTTP 404 |
+| `denied` | a `Permission denied` line with exit 0 |
+| `auth` | a network or service command (`curl`, `gh`, `ssh`, `aws`, `kubectl`, `docker`, `git push`…) printed 401, 403, Unauthorized or "not logged in" |
+| `timeout` | the same commands printed "timed out", `ETIMEDOUT`, deadline exceeded or 504 |
+| `retried` | one of the next 3 calls is the same tool with at least 80% similar input, within 120 s, and no edit in between |
+| `empty` | an empty search or listing. Too weak alone: it only counts once a retry follows, which makes it `retried` |
+
+The rules are deliberately conservative. Content printers such as `cat` and `grep` count only
+their own error line, never the content they print, and file tools (`Read`, `Edit`, `Write`) are
+never soft. Re-running tests after an edit is not a retry.
+
+**Clusters.** Unlogged bad calls (those after the session's `mark_event`) group into clusters. A
+cluster ends when the next bad call is more than 10 minutes later, or when more than 3 clean
+calls come between them. Question tools are ignored.
+
+**The window.** By default the window is the newest cluster: it starts at the cluster's first
+bad call and ends with the *resolution call*, the first clean call after the cluster's last bad
+call (or the last bad call itself, if nothing has worked yet). The productive work an agent does
+between getting past the problem and logging it is not counted. `--from <event id>` and
+`--to <event id>` (ids from `friction timeline`) set either end explicitly.
 
 **Active time only.** The window is not simply end minus start. Walking the calls in order, each
 gap to the next call counts in full only if it is no longer than the call's own duration plus 5
@@ -169,10 +190,13 @@ short: from the end of a turn to the next prompt, a permission prompt, a questio
 is pending user input, not friction. A wait whose closing hook never fired runs until the next
 tool call. `friction retime` applies this to occurrences logged earlier: it reads each session's
 waits from its transcript (as backfill does) and re-measures the occurrence over its original
-window, which needs the raw events to still be within the 30 day retention.
+window, which needs the raw events to still be within the 30 day retention. For live
+occurrences it also applies the resolution-call end, so occurrences logged before that rule
+existed are corrected.
 
-**After logging,** the session's `mark_event` moves to the newest event, so the same failures
-are not counted twice and the Stop nudge stops asking about them.
+**After logging,** the session's `mark_event` moves to the window's last event, so the same
+calls are not counted twice. Later bad calls stay unlogged, so a second problem in the same
+session can be logged and timed on its own.
 
 Each occurrence records where its number came from, and reports keep these apart:
 
@@ -191,10 +215,17 @@ that cost a lot once. The top 5, with workarounds, go into every new session thr
 `SessionStart` hook (on startup, resume, `/clear` and compaction). `friction hot` shows the same
 list.
 
-**The Stop nudge.** When an agent finishes a turn with two or more failed calls that are neither
+**Only verified workarounds.** Every later session reads the hot list, so it must not become a
+way to inject text into agents. Items the backfill analyser creates are `verified = 0`: their
+workaround came from a model reading tool output. For those, SessionStart, `hot`, `search` and
+`bump` show "(unverified workaround: run `friction show <id>`)" in place of the text, and the
+title is cut to 80 characters with backticks and newlines removed. `friction verify <id>` trusts
+the item, and setting the workaround with `friction workaround` does too.
+
+**The Stop nudge.** When an agent finishes a turn with two or more bad calls (failed, or didn't do what was expected) that are neither
 logged nor already asked about, the Stop hook blocks once with a short message: if that was
 friction, log it; if it was normal work, ignore this. It then records the newest event as
-nudged, so it asks once per streak. It never fires when Claude Code is already continuing
+nudged, so it asks once per cluster of bad calls. It never fires when Claude Code is already continuing
 because of a Stop hook (`stop_hook_active`).
 
 ## 5. Item lifecycle
@@ -236,26 +267,44 @@ sessions that might contain friction.
    gap from the agent's last message to each prompt the user typed; in Codex, from
    `task_complete` (or `turn_aborted`) to the next `task_started`; and the run of question tools.
    Permission prompts are not visible in transcripts, so their time stays inside the call.
-3. Import the calls as `events` with `source = 'transcript'`, unless the live hook already
-   recorded that session.
-4. Keep the session only if it has at least `--min-failures` (2) unlogged failures. Otherwise mark
-   it `clean` and move on.
+   Successful calls keep a short output snippet so the same soft-failure rules as the hook apply,
+   and retries are flagged across the parsed calls.
+3. Import the calls as `events` with `source = 'transcript'`. If the live hook already recorded
+   the session, only calls older than its first hook event are imported (the hooks were installed
+   partway through), and the session's events are renumbered in time order with every reference
+   to them remapped.
+4. Keep the session only if it has at least `--min-failures` (2) unlogged bad calls. Otherwise
+   mark it `clean` and move on.
 
 `--dry-run` stops here and lists the candidate sessions.
 
 **Stage 2, the analyser.** For up to `--limit` (40) sessions per run:
 
-1. Build an excerpt: each unlogged failure with two calls before and three after, gaps elided,
-   along with the list of existing items and anything already logged for that session.
+1. Build an excerpt of whole clusters, each with a little context, up to 160 lines, along with
+   the list of existing items, anything already logged for that session, and the bad calls the
+   live agent was nudged about but chose not to log. Clusters that don't fit go into further
+   chunks (up to 3 per run); anything left after that waits for the next run, and the session's
+   mark only moves past what was actually analysed.
 2. Run `claude -p --model haiku` with no tools, no MCP servers, no settings files, no session
-   persistence, `FRICTION_DISABLE=1` and a fixed system prompt that defines friction. It must
-   answer with a JSON array of findings: an existing `item_id` or a new title, detail, workaround,
-   and the event ids where the friction began and ended.
-3. File each finding through the same `occur()` path as a live bump, with `source = 'backfill'`.
-   Findings that cite event ids not in the excerpt are dropped. The session's mark then moves past
-   everything analysed.
+   persistence, `FRICTION_DISABLE=1`, a fixed system prompt that defines friction, and
+   `--json-schema` for the reply. Each finding is an existing `item_id` or a new title, detail and
+   workaround, plus the event ids where the friction began and ended. Every finding is
+   type-checked in Python and invalid ones are dropped with a warning.
+3. File each finding through the same `occur()` path as a live bump, with `source = 'backfill'`
+   and new items `verified = 0`. `from_event` must be a bad call in an analysed cluster; a
+   missing or out-of-range `to_event` falls back to that cluster's resolution call.
 
-If the analyser fails, the session is left unprocessed and the next run tries again. Backfill is
+If the analyser fails, the session is left unprocessed and the next run tries again.
+
+**Optional Jev classifier.** Off by default. With `"classifier": "jev"` in
+`~/.config/friction/classifier.json` (or `--classifier jev` for one run), stage 2 changes. For
+each cluster, Jev (TypeSafe's `api.typesafe.ai/v1/systemone`) answers two choice questions with
+probabilities: is it friction (versus task iteration, probing or noise), and which existing item
+it matches (or `new`). Only friction answers at or above `min_confidence` (0.75) are acted on.
+Matches are filed directly; only new friction goes to `claude -p`, to write the title and
+workaround. Uncertain clusters are still marked processed, and they are counted in the session's
+`backfill_sessions.status`. `friction backfill --jev-check` tests the key without sending any
+session data. Backfill is
 the only part of friction that sends anything to a model; skip the timer (`--no-services`) if you
 do not want that.
 
