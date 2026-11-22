@@ -426,6 +426,30 @@ Each request used about 2,900 input tokens. Leaning on the threshold means doubt
 left out rather than guessed at. Lower `min_confidence` if too little gets filed, and raise it if
 the list fills with noise.
 
+**Tuning the threshold from real runs.** Every judged cluster is kept in a `jev_decisions`
+table with both answers, their confidences, the threshold used, what happened (`uncertain`,
+`skipped`, `matched`, `new` or `unfiled`) and a short redacted summary of the first bad call.
+`friction backfill --jev-stats` reads it back:
+
+```
+14 clusters judged by Jev: matched=3, new=2, skipped=6, uncertain=3
+
+kind confidence    friction  other  (no answer: 0)
+  0.00-0.50              1      0
+  0.50-0.65              1      1
+  0.65-0.75              1      0
+  0.75-0.85              2      2
+  0.85-0.95              2      2
+  0.95-1.00              1      1
+
+Near the threshold (±0.15), most recent 8:
+  2026-11-29 03:30  friction 0.71 (min 0.75) -> uncertain: git push -> rejected: non-fast-forward
+  ...
+```
+
+(Illustrative output.) If the uncertain rows just under the threshold read like real friction,
+lower `min_confidence`; if the filed rows just above it read like noise, raise it.
+
 **Trade-offs against the default.**
 
 | | `claude -p` (default) | Jev hybrid |
