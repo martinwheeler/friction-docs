@@ -7,7 +7,7 @@ title: How friction works
 This is the long version of the "How it works" section in the
 [friction README](https://github.com/martinwheeler/friction#how-it-works): what each part does,
 when it runs, what it stores and why. It describes the code at commit
-[`fcda288`](https://github.com/martinwheeler/friction/tree/fcda288).
+[`33d931f`](https://github.com/martinwheeler/friction/tree/33d931f).
 
 In a hurry? Read [the worked timing example](#a-worked-example) to see how a number like "46s
 wasted" is computed, and [backfill with Jev](#backfill-with-jev-optional) to see how unlogged
